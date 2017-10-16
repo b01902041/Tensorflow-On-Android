@@ -13,7 +13,6 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
@@ -46,12 +45,17 @@ public class MainActivity extends Activity {
     private int[] output_intValues = new int[inputSize_x * inputSize_y];
 
     private ScaleImage imageView;
-    private ImageView imageView2;
+    private ScaleImage imageView2;
 
     public TensorFlowInferenceInterface inferenceInterface;
 
+    public Bitmap bitmap_origin;
     public Bitmap bitmap;
+    public Bitmap bitmap2;
     public Uri uri;
+
+    public int have_image1;
+    public int have_image2;
 
     static {
         System.loadLibrary("tensorflow_inference");
@@ -65,7 +69,11 @@ public class MainActivity extends Activity {
 
         inferenceInterface = new TensorFlowInferenceInterface(getAssets(), MODEL_FILE);
 
-        // Choose image from cell phone--------------------------------------
+        // Initilaize all flags
+        have_image1 = 0;
+        have_image2 = 0;
+
+        // Choose image from cell phone-----------------------------------------------
         //找尋Button按鈕
         Button button1 = (Button)findViewById(R.id.button1);
         //設定按鈕監聽式
@@ -78,15 +86,51 @@ public class MainActivity extends Activity {
                 intent.setAction(Intent.ACTION_GET_CONTENT);
                 //取得相片後返回本畫面
                 startActivityForResult(intent, 1);
+                have_image1 = 1;
             }
         });
 
+        // Press button to Run-------------------------------------------------------
         Button button2 = (Button)findViewById(R.id.button2);
         //設定按鈕監聽式
         button2.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
-                System.out.println("Start run");
-                Run();
+                if (have_image1 == 1) {
+                    System.out.println("Start run");
+                    Run();
+                    have_image2 = 1;
+                }
+            }
+        });
+
+        // Choose origin image-------------------------------------------------------
+        Button button3 = (Button)findViewById(R.id.button3);
+        //設定按鈕監聽式
+        button3.setOnClickListener(new Button.OnClickListener() {
+            public void onClick(View v) {
+                if (have_image1 == 1) {
+                    if(have_image2 == 1) {
+                        //imageView.setScaleType(ImageView.ScaleType.CENTER);
+                        //imageView.setVisibility(View.VISIBLE);
+                        //imageView2.setVisibility(View.GONE);
+                        imageView.setImageBitmap(bitmap);
+                    }
+                }
+
+            }
+        });
+
+        // Choose adjusted image-------------------------------------------------------
+        Button button4 = (Button)findViewById(R.id.button4);
+        //設定按鈕監聽式
+        button4.setOnClickListener(new Button.OnClickListener() {
+            public void onClick(View v) {
+                if (have_image2 == 1) {
+                    //imageView2.setScaleType(ImageView.ScaleType.CENTER);
+                    //imageView2.setVisibility(View.VISIBLE);
+                    //imageView.setVisibility(View.GONE);
+                    imageView.setImageBitmap(bitmap2);
+                }
             }
         });
 
@@ -107,9 +151,10 @@ public class MainActivity extends Activity {
             try {
                 //由抽象資料接口轉換圖檔路徑為Bitmap
                 bitmap = BitmapFactory.decodeStream(cr.openInputStream(uri));
+                bitmap_origin = bitmap;
                 //取得圖片控制項ImageView
                 imageView = (ScaleImage) findViewById(R.id.imageView);
-                //scaleImage = (ScaleImage) findViewById(R.id.scale_imageView);
+                imageView.setVisibility(View.VISIBLE);
                 // 將Bitmap設定到ImageView
                 imageView.setImageBitmap(bitmap);
             } catch (FileNotFoundException e) {
@@ -182,11 +227,11 @@ public class MainActivity extends Activity {
         for (int i = 0; i < output_intValues.length; ++i) {
             output_intValues[i] = 0xff000000 | ((int)(output[i * 3])<< 16) | ((int)(output[i * 3 + 1])<< 8) | (int)(output[i * 3 + 2]);
         }
-        Bitmap bitmap2 = Bitmap.createBitmap(output_intValues, inputSize_x, inputSize_y, Bitmap.Config.ARGB_8888);
+        bitmap2 = Bitmap.createBitmap(output_intValues, inputSize_x, inputSize_y, Bitmap.Config.ARGB_8888);
         // show gray image
-        imageView2 = (ImageView)findViewById(R.id.imageView2);
-        imageView2.setImageBitmap(bitmap2);
-
+        //imageView2 = (ScaleImage)findViewById(R.id.imageView2);
+        //imageView2.setImageBitmap(bitmap2);
+        imageView.setImageBitmap(bitmap2);
         try {
             // 取得外部儲存裝置路徑
             String path = Environment.getExternalStorageDirectory().toString ();

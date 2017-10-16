@@ -4,184 +4,300 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Matrix;
 import android.graphics.PointF;
-import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
-import android.util.DisplayMetrics;
-import android.util.FloatMath;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.widget.ImageView;
+
 
 /**
  * Created by Claire on 2017/10/11.
  */
 public class ScaleImage extends ImageView {
-    //初始狀態的Matrix
-    private Matrix mMatrix = new Matrix();
-    //進行變動狀況下的Matrix
-    private Matrix mChangeMatrix = new Matrix();
-    //圖片的Bitmap
-    private Bitmap mBitmap = null;
-    //手機畫面尺寸資訊
-    private DisplayMetrics mDisplayMetrics;
-    //設定縮放最小比例
-    private float mMinScale = 1.0f;
-    //設定縮放最大比例
-    private float mMaxScale = 5.0f;
-    //圖片狀態 - 初始狀態
-    private  static final int STATE_NONE = 0;
-    //圖片狀態 - 拖動狀態
-    private static final int STATE_DRAG = 1;
-    //圖片狀態 - 縮放狀態
-    private static final int STATE_ZOOM = 2;
-    //當下的狀態
-    private int mState = STATE_NONE;
-    //第一點按下的座標
-    private PointF mFirstPointF = new PointF();
-    //第二點按下的座標
-    private PointF mSecondPointF = new PointF();
-    //兩點距離
-    private float mDistance = 1f;
-    //圖片中心座標
-    private float mCenterX,mCenterY;
-    //ScaleImage類別，xml呼叫運用
+    private Matrix matrix = new Matrix();
 
-    public ScaleImage(Context context, AttributeSet attrs)
-    {
+    // mode can be in one of these 3 states
+    private static final int NONE = 0;
+    private static final int DRAG = 1;
+    private static final int ZOOM = 2;
+    private int mode = NONE;
+
+    private static final int CLICK = 3;
+
+    // Remember some things
+    private PointF last = new PointF();
+    private PointF start = new PointF();
+    private float minScale = 1f;// default
+    private float maxScale = 3f;// default
+    private float minScaleTemp;// measure
+    private float maxScaleTemp;// measure
+    private float[] m;
+    private float redundantXSpace, redundantYSpace;
+    private float width, height;
+    private float nowScale = 1f;
+    private float origWidth, origHeight, imageWidth, imageHeight,
+            redundantWidth, redundantHeight;
+    private boolean fit = false;
+
+    private ScaleGestureDetector mScaleDetector;
+
+    public ScaleImage(Context context) {
+        super(context);
+        initStanScalableImageView(context);
+    }
+
+    public ScaleImage(Context context, AttributeSet attrs) {
         super(context, attrs);
+        initStanScalableImageView(context);
+    }
 
-        //取得圖片Bitmap
-        BitmapDrawable mBitmapDrawable = (BitmapDrawable) this.getDrawable();
-        if(mBitmapDrawable != null)
-        {
-            mBitmap = mBitmapDrawable.getBitmap();
-            build_image();
+    public ScaleImage(Context context, AttributeSet attrs,
+                                 int defStyle) {
+        super(context, attrs, defStyle);
+        initStanScalableImageView(context);
+    }
+
+    private void initStanScalableImageView(Context context) {
+        super.setScaleType(ScaleType.CENTER);
+        mScaleDetector = new ScaleGestureDetector(context, new ScaleListener());
+        matrix.setTranslate(1f, 1f);
+        m = new float[9];
+        setImageMatrix(matrix);
+        setScaleType(ScaleType.MATRIX);
+        setOnTouchListener(new DragListener());
+    }
+
+    @Override
+    public void setImageBitmap(Bitmap bitmap) {
+        super.setImageBitmap(bitmap);
+        imageWidth = bitmap.getWidth();
+        imageHeight = bitmap.getHeight();
+    }
+
+    @Override
+    public void setImageDrawable(Drawable drawable) {
+        super.setImageDrawable(drawable);
+        imageWidth = drawable.getIntrinsicWidth();
+        imageHeight = drawable.getIntrinsicHeight();
+    }
+
+    @Override
+    public void setImageResource(int resourceID) {
+        super.setImageResource(resourceID);
+        imageWidth = getResources().getDrawable(resourceID).getIntrinsicWidth();
+        imageHeight = getResources().getDrawable(resourceID)
+                .getIntrinsicHeight();
+    }
+
+    public void setMaxZoom(float x) {
+        this.maxScale = x;
+    }
+
+    public void setMinZoom(float x) {
+        this.minScale = x;
+    }
+
+    public void setFit(boolean fit) {
+        this.fit = fit;
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        width = MeasureSpec.getSize(widthMeasureSpec);
+        height = MeasureSpec.getSize(heightMeasureSpec);
+        float scale;
+        if (fit) {
+            float scaleX = (float) width / (float) imageWidth;
+            float scaleY = (float) height / (float) imageHeight;
+            scale = Math.min(scaleX, scaleY);
+            matrix.setScale(scale, scale);
+        } else {
+            scale = 1;
         }
+        minScaleTemp = minScale * scale;
+        maxScaleTemp = maxScale * scale;
+
+        setImageMatrix(matrix);
+        nowScale = scale;
+
+        // Center the image
+
+        redundantHeight = (scale * (float) imageHeight);
+        redundantWidth = (scale * (float) imageWidth);
+        redundantYSpace = (float) height - (scale * (float) imageHeight);
+        redundantXSpace = (float) width - redundantWidth;
+        redundantYSpace /= (float) 2;
+        redundantXSpace /= (float) 2;
+
+        matrix.getValues(m);
+        float x = m[Matrix.MTRANS_X];
+        float y = m[Matrix.MTRANS_Y];
+        matrix.postTranslate(redundantXSpace - x, redundantYSpace - y);
+
+        origWidth = width - 2 * redundantXSpace;
+        origHeight = height - 2 * redundantYSpace;
+        setImageMatrix(matrix);
+
     }
 
-    //圖片縮放層級設定
-    private void Scale()
-    {
-        //取得圖片縮放的層級
-        float level[] = new float[9];
-        mMatrix.getValues(level);
+    private class DragListener implements OnTouchListener {
 
-        //狀態為縮放時進入
-        if (mState == STATE_ZOOM)
-        {
-            //若層級小於1則縮放至原始大小
-            if (level[0] < mMinScale)
-            {
-                mMatrix.setScale(mMinScale, mMinScale);
-                mMatrix.postTranslate(mCenterX,mCenterY);
-            }
+        @Override
+        public boolean onTouch(View v, MotionEvent event) {
+            mScaleDetector.onTouchEvent(event);
+            matrix.getValues(m);
+            float x = m[Matrix.MTRANS_X];
+            float y = m[Matrix.MTRANS_Y];
+            PointF curr = new PointF(event.getX(), event.getY());
 
-            //若縮放層級大於最大層級則顯示最大層級
-            if (level[0] > mMaxScale)  mMatrix.set(mChangeMatrix);
-        }
-    }
-
-    //兩點距離
-    private float Spacing(MotionEvent event)
-    {
-        float x = event.getX(0) - event.getX(1);
-        float y = event.getY(0) - event.getY(1);
-        return FloatMath.sqrt(x * x + y * y);
-    }
-
-    //兩點中心
-    private void MidPoint(PointF point, MotionEvent event)
-    {
-        float x = event.getX(0) + event.getX(1);
-        float y = event.getY(0) + event.getY(1);
-        point.set(x / 2, y / 2);
-    }
-
-    //圖片縮放設定
-    public void build_image()
-    {
-        //取得Context
-        Context mContext = getContext();
-        //取得手機畫面尺寸資訊
-        mDisplayMetrics = mContext.getResources().getDisplayMetrics();
-
-        //設置縮放的型態
-        this.setScaleType(ScaleType.MATRIX);
-        //將Bitmap帶入
-        this.setImageBitmap(mBitmap);
-
-        //將圖片放置畫面中央
-        mCenterX = (float)((mDisplayMetrics.widthPixels/2)-(mBitmap.getWidth()/2));
-        mCenterY = (float)((mDisplayMetrics.heightPixels/3)-(mBitmap.getHeight()/2));
-        mMatrix.postTranslate(mCenterX,mCenterY);
-
-        //將mMatrix帶入
-        this.setImageMatrix(mMatrix);
-
-        //設置Touch觸發的Listener動作
-        this.setOnTouchListener(new OnTouchListener()
-        {
-            @Override
-            public boolean onTouch(View v, MotionEvent event)
-            {
-                //多點觸碰偵測
-                switch(event.getAction() & MotionEvent.ACTION_MASK)
-                {
-                    //第一點按下進入
-                    case MotionEvent.ACTION_DOWN :
-                        mChangeMatrix.set(mMatrix);
-                        mFirstPointF.set(event.getX(), event.getY());
-                        mState = STATE_DRAG;
-                        break;
-
-                    //第二點按下進入
-                    case MotionEvent.ACTION_POINTER_DOWN :
-                        mDistance = Spacing(event);
-                        //只要兩點距離大於10就判定為多點觸碰
-                        if (Spacing(event) > 10f)
-                        {
-                            mChangeMatrix.set(mMatrix);
-                            MidPoint(mSecondPointF, event);
-                            mState = STATE_ZOOM;
-                        }
-                        break;
-
-                    //離開觸碰
-                    case MotionEvent.ACTION_UP :
-                        break;
-
-                    //離開觸碰，狀態恢復
-                    case MotionEvent.ACTION_POINTER_UP :
-                        mState = STATE_NONE;
-                        break;
-
-                    //滑動過程進入
-                    case MotionEvent.ACTION_MOVE :
-                        if (mState == STATE_DRAG)
-                        {
-                            mMatrix.set(mChangeMatrix);
-                            mMatrix.postTranslate(event.getX() - mFirstPointF.x, event.getY() - mFirstPointF.y);
-                        }
-                        else if (mState == STATE_ZOOM)
-                        {
-                            float NewDistance = Spacing(event);
-                            if (NewDistance > 10f)
-                            {
-                                mMatrix.set(mChangeMatrix);
-                                float NewScale = NewDistance / mDistance;
-                                mMatrix.postScale(NewScale, NewScale, mSecondPointF.x, mSecondPointF.y);
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    last.set(event.getX(), event.getY());
+                    start.set(last);
+                    if (nowScale * imageWidth > width * 1.05
+                            || nowScale * imageHeight > height * 1.05) {
+                        mode = DRAG;
+                    }
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    float deltaX = curr.x - last.x;
+                    float deltaY = curr.y - last.y;
+                    if (mode == DRAG) {
+                        float scaleWidth = Math.round(imageWidth * nowScale);
+                        float scaleHeight = Math.round(imageHeight * nowScale);
+                        // x
+                        if (scaleWidth < width) {// 不超過邊框時置中
+                            deltaX = redundantXSpace - x
+                                    - (imageWidth * nowScale - redundantWidth) / 2;
+                        } else {
+                            if (deltaX > 0 && x + deltaX > 0) {// 往右拉&&左邊拉過頭
+                                deltaX = -x;
+                            } else if (deltaX < 0
+                                    && x + deltaX + scaleWidth < width) {// 往左拉&&右邊拉過頭
+                                deltaX = width - x - scaleWidth;
                             }
                         }
-                        break;
-                }
+                        // y
+                        if (scaleHeight < height) {// 不超過邊框時置中
+                            deltaY = redundantYSpace - y
+                                    - (imageHeight * nowScale - redundantHeight)
+                                    / 2;
+                        } else {
+                            if (deltaY > 0 && y + deltaY > 0) {// 往下拉&&上邊拉過頭
+                                deltaY = -y;
+                            } else if (deltaY < 0
+                                    && y + deltaY + scaleHeight < height) {// 往上拉&&下邊拉過頭
+                                deltaY = height - y - scaleHeight;
+                            }
+                        }
+                        matrix.postTranslate(deltaX, deltaY);
+                        last.set(curr.x, curr.y);
+                    }
+                    break;
 
-                //將mMatrix滑動縮放控制帶入
-                ScaleImage.this.setImageMatrix(mMatrix);
-                //縮放設定
-                Scale();
+                case MotionEvent.ACTION_UP:
+                    mode = NONE;
+                    int xDiff = (int) Math.abs(curr.x - start.x);
+                    int yDiff = (int) Math.abs(curr.y - start.y);
+                    if (xDiff < CLICK && yDiff < CLICK)
+                        performClick();
+                    break;
 
-                return true;
+                case MotionEvent.ACTION_POINTER_UP:
+                    mode = NONE;
+                    break;
             }
-        });
+            setImageMatrix(matrix);
+            invalidate();
+            return true;
+        }
+    }
+
+    private class ScaleListener extends
+            ScaleGestureDetector.SimpleOnScaleGestureListener {
+        @Override
+        public boolean onScaleBegin(ScaleGestureDetector detector) {
+            mode = ZOOM;
+            last.set(detector.getFocusX(), detector.getFocusY());
+            start.set(last);
+            return true;
+        }
+
+        @Override
+        public boolean onScale(ScaleGestureDetector detector) {
+            float mScaleFactor = detector.getScaleFactor();
+            float origScale = nowScale;
+            nowScale *= mScaleFactor;
+            if (nowScale > maxScaleTemp) {
+                nowScale = maxScaleTemp;
+                mScaleFactor = maxScaleTemp / origScale;
+            } else if (nowScale < minScaleTemp) {
+                nowScale = minScaleTemp;
+                mScaleFactor = minScaleTemp / origScale;
+            }
+            if (origWidth * nowScale <= width
+                    || origHeight * nowScale <= height) {
+                matrix.postScale(mScaleFactor, mScaleFactor, width / 2,
+                        height / 2);
+            } else {
+                matrix.postScale(mScaleFactor, mScaleFactor,
+                        detector.getFocusX(), detector.getFocusY());
+            }
+            matrix.getValues(m);
+            float x = m[Matrix.MTRANS_X];
+            float y = m[Matrix.MTRANS_Y];
+            float scaleWidth = Math.round(imageWidth * nowScale);
+            float scaleHeight = Math.round(imageHeight * nowScale);
+            if (nowScale < origScale) {// 縮小時置中
+                if (x > 0 && x + scaleWidth > width) {// 只有左邊有空隙
+                    matrix.postTranslate(-x, 0);
+                } else if (x < 0 && x + scaleWidth < width) {// 只有右邊有空隙
+                    matrix.postTranslate(width - x - scaleWidth, 0);
+                } else if (x > 0 && x + scaleWidth < width) {// 兩邊都有空隙
+                    matrix.postTranslate((width - scaleWidth) / 2 - x, 0);
+                }
+                if (y > 0 && y + scaleHeight > height) {// 只有上邊有空隙
+                    matrix.postTranslate(0, -y);
+                } else if (y < 0 && y + scaleHeight < height) {// 只有下邊有空隙
+                    matrix.postTranslate(0, height - y - scaleHeight);
+                } else if (y > 0 && y + scaleHeight < height) {// 兩邊都有空隙
+                    matrix.postTranslate(0, (height - scaleHeight) / 2 - y);
+                }
+            }
+
+            PointF curr = new PointF(detector.getFocusX(), detector.getFocusY());
+            float deltaX = curr.x - last.x;
+            float deltaY = curr.y - last.y;
+            last.set(curr.x, curr.y);
+            // x
+            if (scaleWidth < width) {// 不超過邊框時置中
+                deltaX = redundantXSpace - x
+                        - (imageWidth * nowScale - redundantWidth) / 2;
+                return true;// 縮放這邊已經置中過了，跳調
+            } else {
+                if (deltaX > 0 && x + deltaX > 0) {// 往右拉&&左邊拉過頭
+                    deltaX = -x;
+                } else if (deltaX < 0 && x + deltaX + scaleWidth < width) {// 往左拉&&右邊拉過頭
+                    deltaX = width - x - scaleWidth;
+                }
+            }
+            // y
+            if (scaleHeight < height) {// 不超過邊框時置中
+                deltaY = redundantYSpace - y
+                        - (imageHeight * nowScale - redundantHeight) / 2;
+                return true;// 縮放這邊已經置中過了，跳調
+            } else {
+                if (deltaY > 0 && y + deltaY > 0) {// 往下拉&&上邊拉過頭
+                    deltaY = -y;
+                } else if (deltaY < 0 && y + deltaY + scaleHeight < height) {// 往上拉&&下邊拉過頭
+                    deltaY = height - y - scaleHeight;
+                }
+            }
+            matrix.postTranslate(deltaX, deltaY);
+            return true;
+        }
     }
 }
