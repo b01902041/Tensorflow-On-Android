@@ -6,6 +6,7 @@ import android.graphics.Matrix;
 import android.graphics.PointF;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
@@ -41,6 +42,9 @@ public class ScaleImage extends ImageView {
             redundantWidth, redundantHeight;
     private boolean fit = false;
 
+    private long lastClickTime = 0;
+    private long down_time = 0;
+
     private ScaleGestureDetector mScaleDetector;
 
     public ScaleImage(Context context) {
@@ -53,8 +57,7 @@ public class ScaleImage extends ImageView {
         initStanScalableImageView(context);
     }
 
-    public ScaleImage(Context context, AttributeSet attrs,
-                                 int defStyle) {
+    public ScaleImage(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
         initStanScalableImageView(context);
     }
@@ -87,8 +90,7 @@ public class ScaleImage extends ImageView {
     public void setImageResource(int resourceID) {
         super.setImageResource(resourceID);
         imageWidth = getResources().getDrawable(resourceID).getIntrinsicWidth();
-        imageHeight = getResources().getDrawable(resourceID)
-                .getIntrinsicHeight();
+        imageHeight = getResources().getDrawable(resourceID).getIntrinsicHeight();
     }
 
     public void setMaxZoom(float x) {
@@ -207,6 +209,26 @@ public class ScaleImage extends ImageView {
                     break;
 
                 case MotionEvent.ACTION_POINTER_UP:
+                    Log.d("Scale", "up");
+                    // Double click , add by claire----------------------------------------------
+                    /*
+                    if ( mode == DRAG) {
+
+                        Log.d("Scale", "double");
+                        long now = System.currentTimeMillis();
+
+                        if ((now - lastClickTime) < 300) {
+                            Log.d("Scale", "double < 300");
+                            matrix.setScale(minScale, minScale);
+                            now = 0;
+                        }
+
+                        lastClickTime = now;
+
+                    }
+                    */
+
+                    //---------------------------------------------------------------------------
                     mode = NONE;
                     break;
             }

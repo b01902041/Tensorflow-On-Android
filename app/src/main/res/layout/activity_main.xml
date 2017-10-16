@@ -17,15 +17,22 @@
         android:layout_height="wrap_content" />
     <Button
         android:id="@+id/button3"
-        android:text="Origin"
+        android:text="Bilinear"
         android:layout_below="@+id/button1"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
     <Button
         android:id="@+id/button4"
-        android:text="Adjusted"
+        android:text="Deep"
         android:layout_below="@+id/button1"
         android:layout_toRightOf="@+id/button3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+    <Button
+        android:id="@+id/button5"
+        android:text="Reset"
+        android:layout_below="@+id/button1"
+        android:layout_toRightOf="@+id/button4"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
     <TextView
@@ -39,7 +46,7 @@
         android:layout_below="@+id/button3"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="gone" />
+        />
 
     <!--
     <com.example.claire.tensorflowvdsr.ScaleImage

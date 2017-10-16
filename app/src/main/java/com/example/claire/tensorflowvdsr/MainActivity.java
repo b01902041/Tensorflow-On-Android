@@ -13,6 +13,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
@@ -45,11 +46,10 @@ public class MainActivity extends Activity {
     private int[] output_intValues = new int[inputSize_x * inputSize_y];
 
     private ScaleImage imageView;
-    private ScaleImage imageView2;
+
 
     public TensorFlowInferenceInterface inferenceInterface;
 
-    public Bitmap bitmap_origin;
     public Bitmap bitmap;
     public Bitmap bitmap2;
     public Uri uri;
@@ -109,12 +109,7 @@ public class MainActivity extends Activity {
         button3.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
                 if (have_image1 == 1) {
-                    if(have_image2 == 1) {
-                        //imageView.setScaleType(ImageView.ScaleType.CENTER);
-                        //imageView.setVisibility(View.VISIBLE);
-                        //imageView2.setVisibility(View.GONE);
-                        imageView.setImageBitmap(bitmap);
-                    }
+                    imageView.setImageBitmap(bitmap);
                 }
 
             }
@@ -130,6 +125,19 @@ public class MainActivity extends Activity {
                     //imageView2.setVisibility(View.VISIBLE);
                     //imageView.setVisibility(View.GONE);
                     imageView.setImageBitmap(bitmap2);
+                }
+            }
+        });
+
+        //Set to original size
+        Button button5 = (Button)findViewById(R.id.button5);
+        //設定按鈕監聽式
+        button5.setOnClickListener(new Button.OnClickListener() {
+            public void onClick(View v) {
+                if(have_image1 == 1) {
+                    imageView.setScaleType(ImageView.ScaleType.CENTER);
+                    imageView.setFit(true);
+                    imageView.setScaleType(ImageView.ScaleType.MATRIX);
                 }
             }
         });
@@ -151,11 +159,10 @@ public class MainActivity extends Activity {
             try {
                 //由抽象資料接口轉換圖檔路徑為Bitmap
                 bitmap = BitmapFactory.decodeStream(cr.openInputStream(uri));
-                bitmap_origin = bitmap;
                 //取得圖片控制項ImageView
                 imageView = (ScaleImage) findViewById(R.id.imageView);
-                imageView.setVisibility(View.VISIBLE);
                 // 將Bitmap設定到ImageView
+                imageView.setFit(true);
                 imageView.setImageBitmap(bitmap);
             } catch (FileNotFoundException e) {
                 Log.e("Exception", e.getMessage(),e);
